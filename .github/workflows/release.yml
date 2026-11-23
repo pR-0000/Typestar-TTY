@@ -1,0 +1,56 @@
+name: Publish release
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Verify both ROMs and checksums
+        run: python3 -B tools/check_release.py
+
+      - name: Publish the release and its three assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n' < VERSION)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="v${version}"
+          notes="docs/RELEASE-${tag}.md"
+          test -f "$notes"
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $tag already exists; no changes made."
+            exit 0
+          fi
+
+          gh release create "$tag" \
+            "roms/typestar-tty-${version}-32k.bin" \
+            "roms/typestar-tty-${version}-64k-mirror.bin" \
+            roms/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Typestar TTY $tag" \
+            --notes-file "$notes" \
+            --latest

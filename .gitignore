@@ -1,0 +1,9 @@
+/build/
+/release/
+/dist/
+__pycache__/
+*.py[cod]
+*.bin
+!/roms/typestar-tty-1.0.0-*.bin
+.DS_Store
+Thumbs.db
